@@ -5,7 +5,7 @@ from typing import Optional
 from bot.game_state import GameState, Entity
 from bot.geometry import (
     distance, weighted_flee_vector, move_away_from,
-    point_in_radius, nearest_entity
+    point_in_radius, nearest_entity,
 )
 
 
@@ -65,17 +65,25 @@ class ShowdownStrategy:
         pos = state.player_pos
         if pos is None or not state.poison_zones:
             return None
+        threats: list = []
         for poison in state.poison_zones:
             pcx, pcy = poison.bbox.cx, poison.bbox.cy
             pw, ph = poison.bbox.w / 2, poison.bbox.h / 2
-            in_poison = (
+            if (
                 abs(pos[0] - pcx) < pw + self.poison_margin
                 and abs(pos[1] - pcy) < ph + self.poison_margin
-            )
-            if in_poison:
-                flee_target = move_away_from(pos, (pcx, pcy), self.poison_margin * 3)
-                return Action(move_target=flee_target, reason="flee_poison")
-        return None
+            ):
+                threats.append((pcx, pcy))
+        if not threats:
+            return None
+        if len(threats) == 1:
+            flee_target = move_away_from(pos, threats[0], self.poison_margin * 3)
+        else:
+            weights = [1.0] * len(threats)
+            vx, vy = weighted_flee_vector(pos, threats, weights)
+            d = self.poison_margin * 3
+            flee_target = (pos[0] + vx * d, pos[1] + vy * d)
+        return Action(move_target=flee_target, reason="flee_poison")
 
     def _collect_power_cube(self, state: GameState) -> Optional[Action]:
         pos = state.player_pos
@@ -85,7 +93,7 @@ class ShowdownStrategy:
         cube_pos = (cube.bbox.cx, cube.bbox.cy)
         if distance(pos, cube_pos) > self.cube_radius:
             return None
-        # Shoot any enemy that is between us and the cube
+        # Shoot any enemy that is close while picking up the cube
         nearest_enemy = state.nearest_enemy
         if nearest_enemy is not None:
             enemy_pos = (nearest_enemy.bbox.cx, nearest_enemy.bbox.cy)
@@ -107,7 +115,6 @@ class ShowdownStrategy:
         enemy_pos = (enemy.bbox.cx, enemy.bbox.cy)
         dist = distance(pos, enemy_pos)
 
-        # Check if super is ready and enough enemies nearby
         enemies_nearby = sum(
             1 for e in state.enemies
             if distance(pos, (e.bbox.cx, e.bbox.cy)) < self.shoot_range
@@ -122,7 +129,6 @@ class ShowdownStrategy:
         if dist > self.shoot_range:
             return Action(move_target=enemy_pos, reason="chase_enemy")
 
-        # In range: stop and shoot
         return Action(stop_moving=True, shoot_target=enemy_pos, reason="shoot_enemy")
 
     def _explore(self, state: GameState) -> Action:
@@ -137,16 +143,19 @@ class ShowdownStrategy:
                 reason="explore_to_box",
             )
 
-        # Drift toward screen center if nothing visible
-        center = self._screen_center_fallback()
+        center = self._frame_center_fallback()
         return Action(move_target=center, reason="explore_to_center")
 
     def _estimate_player_hp(self, state: GameState) -> float:
         pos = state.player_pos
         if pos is None or not state.live_bars or state.player is None:
             return 1.0
-        # Closest live_bar to player
-        bar = nearest_entity(pos, state.live_bars)
+        # Health bars float above their unit, so prefer bars whose center is
+        # above the player center. Fall back to all bars if none qualify.
+        player_cy = state.player.bbox.cy
+        candidates = [b for b in state.live_bars if b.bbox.cy < player_cy]
+        pool = candidates or state.live_bars
+        bar = nearest_entity(pos, pool)
         if bar is None:
             return 1.0
         full_width = state.player.bbox.w
@@ -158,8 +167,16 @@ class ShowdownStrategy:
         # Placeholder: super detection not yet implemented
         return False
 
-    def _screen_center_fallback(self) -> tuple:
+    def _frame_center_fallback(self) -> tuple:
+        """Center of the captured frame in frame-local coordinates.
+
+        Detections are reported relative to the capture region's top-left,
+        so the explore target must be in the same coordinate space — not
+        absolute screen coordinates.
+        """
         if self._screen_region is not None:
-            from bot.geometry import screen_center
-            return screen_center(self._screen_region)
+            return (
+                self._screen_region["width"] / 2,
+                self._screen_region["height"] / 2,
+            )
         return (320.0, 240.0)

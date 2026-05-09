@@ -121,6 +121,34 @@ def test_explore_to_center_when_empty(strategy):
     assert action.move_target == pytest.approx((320.0, 240.0), abs=1)
 
 
+# Multi-zone poison: combined flee vector should not point straight into the
+# second zone. With one zone left of player and one zone above, fleeing should
+# go down-and-right.
+def test_flee_combines_multiple_poison_zones(strategy):
+    left = make_entity("poison", 250, 240, w=200, h=200)
+    above = make_entity("poison", 320, 170, w=200, h=200)
+    state = base_state(poison_zones=[left, above])
+    action = strategy.decide(state)
+    assert action.reason == "flee_poison"
+    assert action.move_target is not None
+    tx, ty = action.move_target
+    # Player at (320, 240); flee should push to bigger x (away from left zone)
+    # and bigger y (away from above zone — screen y grows downward).
+    assert tx > 320
+    assert ty > 240
+
+
+# Explore center should be in frame-local coords (relative to capture region),
+# not absolute screen coords. With region offset, target must equal width/2,
+# height/2, NOT left+width/2, top+height/2.
+def test_explore_center_is_frame_local(strategy):
+    strategy.set_screen_region({"left": 500, "top": 400, "width": 640, "height": 480})
+    state = base_state()
+    action = strategy.decide(state)
+    assert action.reason == "explore_to_center"
+    assert action.move_target == pytest.approx((320.0, 240.0), abs=1)
+
+
 # HP estimation
 def test_low_hp_skips_engagement(strategy):
     # live_bar width much smaller than player width → low HP

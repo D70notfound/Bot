@@ -1,6 +1,4 @@
 from __future__ import annotations
-import io
-import time
 
 import numpy as np
 import requests
@@ -35,11 +33,7 @@ class RoboflowDetector:
         import aiohttp as ah
 
         jpeg_bytes = self._encode_frame(frame)
-        params = {
-            "api_key": self._api_key,
-            "confidence": self._confidence,
-            "overlap": self._overlap,
-        }
+        params = self._api_params()
         try:
             if self._session is None or self._session.closed:
                 self._session = ah.ClientSession()
@@ -63,11 +57,7 @@ class RoboflowDetector:
 
     def infer_sync(self, frame: np.ndarray) -> list:
         jpeg_bytes = self._encode_frame(frame)
-        params = {
-            "api_key": self._api_key,
-            "confidence": self._confidence,
-            "overlap": self._overlap,
-        }
+        params = self._api_params()
         try:
             resp = requests.post(
                 self._url,
@@ -83,6 +73,16 @@ class RoboflowDetector:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _api_params(self) -> dict:
+        # Roboflow hosted inference expects confidence/overlap as percentages
+        # (0-100), not 0-1 fractions. Sending 0.40 would be parsed as 0.40%
+        # and return essentially every prediction.
+        return {
+            "api_key": self._api_key,
+            "confidence": int(round(self._confidence * 100)),
+            "overlap": int(round(self._overlap * 100)),
+        }
 
     def _encode_frame(self, frame: np.ndarray) -> bytes:
         import cv2

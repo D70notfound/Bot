@@ -1,12 +1,13 @@
-import math
-import sys
 import os
+import sys
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from bot.geometry import (
     distance, angle_to, point_in_radius,
-    move_away_from, weighted_flee_vector, screen_center, quantize_direction
+    move_away_from, weighted_flee_vector, screen_center, quantize_direction,
 )
 
 
@@ -85,5 +86,3 @@ def test_quantize_direction_south():
 def test_quantize_direction_northeast():
     assert quantize_direction(45) == (1, -1)
 
-
-import pytest
