@@ -1,0 +1,39 @@
+{
+  "roboflow": {
+    "api_key": "",
+    "workspace": "",
+    "project": "",
+    "version": 1,
+    "confidence_threshold": 0.40,
+    "overlap_threshold": 0.30
+  },
+  "emulator": {
+    "window_title": "BlueStacks App Player",
+    "capture_region": null,
+    "fps_target": 10
+  },
+  "input": {
+    "backend": "pynput",
+    "movement_keys": {
+      "up": "w",
+      "down": "s",
+      "left": "a",
+      "right": "d"
+    },
+    "shoot_key": "mouse_left",
+    "super_key": "f"
+  },
+  "strategy": {
+    "poison_safety_margin_px": 60,
+    "engage_min_hp_pct": 0.35,
+    "collect_cube_radius_px": 200,
+    "projectile_dodge_radius_px": 80,
+    "shoot_range_px": 350,
+    "super_min_enemies_nearby": 2
+  },
+  "debug": {
+    "show_overlay": false,
+    "save_frames": false,
+    "frames_dir": "debug_frames"
+  }
+}
